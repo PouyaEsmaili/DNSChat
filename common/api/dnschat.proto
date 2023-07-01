@@ -1,0 +1,182 @@
+syntax = "proto3";
+
+package dnschat;
+
+import 'google/protobuf/empty.proto';
+import 'google/protobuf/timestamp.proto';
+
+message Simple {
+  string text = 1;
+}
+
+message GroupChatKey {
+  bytes key = 1;
+  string group_name = 2;
+}
+
+message BaseMessage {
+  bytes message = 1;
+  string message_full_name = 2;
+  string nonce = 3;
+}
+
+message SignedMessage {
+  bytes message = 1;
+  bytes signature = 2;
+  bytes key_id = 3;
+}
+
+message EncryptedMessage {
+  bytes message = 1;
+  bytes key_id = 2;
+}
+
+message RSAPubKey {
+  bytes public_key = 1;
+}
+
+message DHParams {
+  bytes params = 1;
+}
+
+message DHPubKey {
+  bytes y = 1;
+}
+
+message Key {
+  bytes public_key = 1;
+  bytes encrypted_private_key = 2;
+  bool is_rsa = 3;
+}
+
+message RegisterRequest {
+  string username = 1;
+  string password = 2;
+  repeated Key keys = 3;
+  RSAPubKey rsa_pub_key = 4;
+}
+
+message RegisterResponse {
+  bool success = 1;
+  bool duplicate = 2;
+}
+
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+}
+
+message LoginResponse {
+  bool success = 1;
+  Key key = 2;
+  Key rsa_key = 3;
+}
+
+message EncryptedChatMessage {
+  EncryptedMessage message = 1;
+  string sender = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  string group_name = 4;
+  DHPubKey sender_dh_pub_key = 5;
+  RSAPubKey sender_rsa_pub_key = 6;
+}
+
+message PullMessageResponse {
+  bool success = 1;
+  repeated EncryptedChatMessage messages = 2;
+}
+
+message NewChatSessionRequest {
+  string recipient = 1;
+}
+
+message NewChatSessionResponse {
+  bool success = 1;
+  DHPubKey dh_pub_key = 2;
+  RSAPubKey rsa_pub_key = 3;
+}
+
+message SendChatMessageRequest {
+  bytes message = 1;
+  string recipient = 2;
+  bool is_group = 3;
+  bytes key_id = 4;
+  bytes peer_dh_key_id = 5;
+}
+
+message SendChatMessageResponse {
+  bool success = 1;
+  bool session_expired = 2;
+}
+
+message StoreEncryptedDataRequest {
+  repeated bytes data = 1;
+}
+
+message StoreEncryptedDataResponse {
+  repeated bool success = 1;
+}
+
+message UserStatus {
+  string username = 1;
+  bool online = 2;
+}
+
+message ListUsersResponse {
+  bool success = 1;
+  repeated UserStatus users = 2;
+}
+
+message CreateGroupRequest {
+  string group_name = 1;
+}
+
+message CreateGroupResponse {
+  bool success = 1;
+  bool duplicate = 2;
+}
+
+message AddUserToGroupRequest {
+  string group_name = 1;
+  string user = 2;
+}
+
+message AddUserToGroupResponse {
+  bool success = 1;
+  bool duplicate = 2;
+  map<string, DHPubKey> user_dh_pub_keys = 3;
+}
+
+message RemoveUserFromGroupRequest {
+  string group_name = 1;
+  string user = 2;
+}
+
+message RemoveUserFromGroupResponse {
+  bool success = 1;
+  bool not_found = 2;
+  map<string, DHPubKey> user_dh_pub_keys = 3;
+}
+
+service Chat {
+  rpc GetPublicKey(google.protobuf.Empty) returns (RSAPubKey); // Empty -> RSAPubKey
+  rpc GetDHParams(google.protobuf.Empty) returns (SignedMessage); // Empty -> DHParams
+  rpc NewSession(DHPubKey) returns (SignedMessage); // DHPubKey -> DHPubKey
+
+  rpc Register(EncryptedMessage) returns (EncryptedMessage); // RegisterRequest -> RegisterResponse
+  rpc Login(EncryptedMessage) returns (EncryptedMessage); // LoginRequest -> LoginResponse
+
+  rpc ListUsers(EncryptedMessage) returns (EncryptedMessage); // Empty -> List<String>
+
+  rpc NewChatSession(EncryptedMessage) returns (EncryptedMessage); // NewChatSessionRequest -> NewChatSessionResponse
+  rpc SendChatMessage(EncryptedMessage) returns (EncryptedMessage); // SendChatMessageRequest -> SendChatMessageResponse
+  rpc PullMessages(EncryptedMessage) returns (EncryptedMessage); // Empty -> PullMessageResponse
+
+  rpc ExpireSession(EncryptedMessage) returns (EncryptedMessage); // Empty -> Key
+
+  rpc StoreEncryptedData(EncryptedMessage) returns (EncryptedMessage); // StoreEncryptedDataRequest -> StoreEncryptedDataResponse
+
+  rpc CreateGroup(EncryptedMessage) returns (EncryptedMessage); // CreateGroupRequest -> CreateGroupResponse
+  rpc AddUserToGroup(EncryptedMessage) returns (EncryptedMessage); // AddUserToGroupRequest -> AddUserToGroupResponse
+  rpc RemoveUserFromGroup(EncryptedMessage) returns (EncryptedMessage); // RemoveUserFromGroupRequest -> RemoveUserFromGroupResponse
+}
