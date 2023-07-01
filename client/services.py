@@ -144,7 +144,7 @@ class ClientService:
         return self.messages[username]
 
     def send_message(self, username: str, text: str):
-        self._send_message(username, dnschat_pb2.Simple(text=text))
+        return self._send_message(username, dnschat_pb2.Simple(text=text))
 
     def _send_message(self, username: str, message):
         if username not in self.chat_keys:
@@ -162,7 +162,6 @@ class ClientService:
                 key_id=key_id,
                 peer_dh_key_id=SHA256.new(public_key).digest()[0:16],
             )
-            print(key_id.hex())
             signed_request = self._encryption_service.sign(request, self.rsa_key_id)
             encrypted_request = self._encryption_service.encrypt_message(signed_request, self.session_key_id)
             encrypted_response = self._stub.SendChatMessage(encrypted_request)
@@ -172,11 +171,12 @@ class ClientService:
                 key_id, public_key = self._new_chat_session(username)
                 self.chat_keys[username] = key_id, public_key
             elif response.success:
-                self.messages[username].append({
-                    'you': True,
-                    'text': message.text,
-                    'timestamp': timezone.now(),
-                })
+                if message.DESCRIPTOR.name == 'Simple':
+                    self.messages[username].append({
+                        'you': True,
+                        'text': message.text,
+                        'timestamp': timezone.now(),
+                    })
                 return 'Success'
             else:
                 return 'Failed to send message'
@@ -203,7 +203,6 @@ class ClientService:
             return 'Success'
         else:
             return 'Failed to send message'
-
 
     def expire_session(self, password: str):
         key_encryption_key = SHA256.new((self.username + password + 'key_encryption_key').encode()).digest()
@@ -245,10 +244,10 @@ class ClientService:
         elif not response.success:
             return 'Failed'
         else:
-            group_key = get_random_bytes(2048)
+            group_key = SHA256.new(get_random_bytes(2048)).digest()
             group_key_id = SHA256.new(group_key).digest()[0:16]
             self._key_service.add_key(group_key_id, group_key)
-            for member, _ in response.user_dh_pub_keys.values():
+            for member in response.user_dh_pub_keys:
                 message = dnschat_pb2.GroupChatKey(key=group_key, group_name=group_name)
                 self._send_message(member, message)
             return 'Success'
@@ -265,13 +264,19 @@ class ClientService:
         elif not response.success:
             return 'Failed'
         else:
-            group_key = get_random_bytes(2048)
+            group_key = SHA256.new(get_random_bytes(2048)).digest()
             group_key_id = SHA256.new(group_key).digest()[0:16]
             self._key_service.add_key(group_key_id, group_key)
-            for member, _ in response.user_dh_pub_keys.values():
+            for member in response.user_dh_pub_keys:
                 message = dnschat_pb2.GroupChatKey(key=group_key, group_name=group_name)
                 self._send_message(member, message)
             return 'Success'
+
+    def list_groups(self):
+        return self.group_keys.keys()
+
+    def get_group_messages(self, group_name):
+        return self.group_messages[group_name]
 
     def _new_chat_session(self, username: str):
         request = dnschat_pb2.NewChatSessionRequest(recipient=username)
@@ -308,6 +313,7 @@ class ClientService:
                         _, key = self._encryption_service.dh_exchange(m.sender_dh_pub_key.y, self.dh_private_key)
                         key_id = SHA256.new(key).digest()[0:16]
                         self._key_service.add_key(key_id, key)
+                        self.chat_keys[m.sender] = key_id, m.sender_dh_pub_key.y
                     encrypted_message = dnschat_pb2.EncryptedMessage().FromString(m.message.message)
                     signed_message = cast(dnschat_pb2.SignedMessage, self._encryption_service.decrypt_message(encrypted_message))
                     message = self._encryption_service.verify(signed_message, force_verify=False)

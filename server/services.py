@@ -1,7 +1,5 @@
-from collections import defaultdict
 from typing import cast, Tuple, Any, Optional
 
-import grpc
 from Crypto.Hash import SHA256
 from Crypto.PublicKey import RSA
 from cryptography.hazmat.primitives import serialization
@@ -12,7 +10,7 @@ from google.protobuf import empty_pb2, timestamp_pb2
 
 from common.api import dnschat_pb2_grpc, dnschat_pb2
 from common.services import EncryptionService, AbstractKeyService, AbstractRSAKeyService
-from server.models import Session, Configuration, User, Key, ChatMessage, Group, GroupMessage
+from server.models import Session, Configuration, User, Key, ChatMessage, Group
 
 
 class ChatServicer(dnschat_pb2_grpc.ChatServicer):
@@ -252,6 +250,10 @@ class ChatServicer(dnschat_pb2_grpc.ChatServicer):
         req = cast(dnschat_pb2.AddUserToGroupRequest, req)
         try:
             group = Group.objects.get(name=req.group_name)
+            if group.admin != user:
+                return self._sign_and_encrypt_response(dnschat_pb2.AddUserToGroupResponse(
+                    success=False, duplicate=False
+                ), request.key_id)
             user = User.objects.get(username=req.user)
             if req.user in group.members.split(','):
                 return self._sign_and_encrypt_response(dnschat_pb2.AddUserToGroupResponse(
@@ -279,6 +281,10 @@ class ChatServicer(dnschat_pb2_grpc.ChatServicer):
         req = cast(dnschat_pb2.RemoveUserFromGroupRequest, req)
         try:
             group = Group.objects.get(name=req.group_name)
+            if group.admin != user:
+                return self._sign_and_encrypt_response(dnschat_pb2.AddUserToGroupResponse(
+                    success=False, duplicate=False
+                ), request.key_id)
             user = User.objects.get(username=req.user)
             members = group.members.split(',')
 
@@ -287,7 +293,7 @@ class ChatServicer(dnschat_pb2_grpc.ChatServicer):
                     success=False, not_found=True
                 ), request.key_id)
 
-            members.remove(user)
+            members.remove(user.username)
             group.members = ','.join(members)
             group.save()
 

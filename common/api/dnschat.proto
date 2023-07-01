@@ -109,14 +109,6 @@ message SendChatMessageResponse {
   bool session_expired = 2;
 }
 
-message StoreEncryptedDataRequest {
-  repeated bytes data = 1;
-}
-
-message StoreEncryptedDataResponse {
-  repeated bool success = 1;
-}
-
 message UserStatus {
   string username = 1;
   bool online = 2;
@@ -173,8 +165,6 @@ service Chat {
   rpc PullMessages(EncryptedMessage) returns (EncryptedMessage); // Empty -> PullMessageResponse
 
   rpc ExpireSession(EncryptedMessage) returns (EncryptedMessage); // Empty -> Key
-
-  rpc StoreEncryptedData(EncryptedMessage) returns (EncryptedMessage); // StoreEncryptedDataRequest -> StoreEncryptedDataResponse
 
   rpc CreateGroup(EncryptedMessage) returns (EncryptedMessage); // CreateGroupRequest -> CreateGroupResponse
   rpc AddUserToGroup(EncryptedMessage) returns (EncryptedMessage); // AddUserToGroupRequest -> AddUserToGroupResponse
